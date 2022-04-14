@@ -1,0 +1,61 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-push-image
+spec:
+  description: |
+    Builds and pushes an image to Dockerhub
+  params:
+  - name: repo-url
+    type: string
+    description: The git repository URL to clone from.
+  - name: tag-name
+    type: string
+    description: The git tag to clone.
+  - name: expected-sha
+    type: string
+    description: The expected SHA to be received for the supplied revision.
+  - name: build-image
+    type: string
+    description: Name (reference) of the image to build.
+  - name: build-dockerfile
+    type: string
+    description: Path to the Dockerfile to build.
+  - name: build-context
+    type: string
+    description: The build context used by Kaniko.
+  workspaces:
+  - name: output
+  - name: dockerconfig
+  tasks:
+  - name: fetch-repository
+    taskRef:
+      name: git-clone
+    workspaces:
+    - name: output
+      workspace: output
+    params:
+    - name: url
+      value: $(params.repo-url)
+    - name: revision
+      value: $(params.tag-name)
+    - name: verbose
+      value: "true"
+  - name: build-push-image
+    taskRef:
+      name: kaniko-build-push
+    runAfter:
+      - fetch-repository
+    workspaces:
+    - name: output
+      workspace: output
+    - name: dockerconfig
+      workspace: dockerconfig
+    params:
+    - name: IMAGE
+      value: $(params.build-image)
+    - name: DOCKERFILE
+      value: $(params.build-dockerfile)
+    - name: CONTEXT
+      value: $(params.build-context)
+

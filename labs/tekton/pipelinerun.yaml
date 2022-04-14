@@ -1,0 +1,36 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: using-git-clone-result
+spec:
+  serviceAccountName: build-bot
+  pipelineRef:
+    name: build-and-push-image
+  workspaces:
+  - name: output
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+  - name: dockerconfig
+    secret:
+      secretName: dockerhub
+  params:
+  - name: repo-url
+    value: git@github.com:ContainerSolutions/cre-labs-microservices-demo.git
+  - name: tag-name
+    value: main
+  - name: expected-sha
+    value: c7948ab0a8f40da1614de1fad359e1613711b4ce
+  - name: build-image
+    value: igiannoulas/cre-labs-microservices-demo-emailservice:test
+  - name: build-dockerfile
+    value: /workspace/output/src/emailservice/Dockerfile
+  - name: build-context
+    value: /src/emailservice
+
+
+
