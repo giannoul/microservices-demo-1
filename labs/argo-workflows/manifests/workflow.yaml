@@ -1,0 +1,90 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: input-artifact-git
+  namespace: argo
+spec:
+  entrypoint: procedure
+  volumes:
+  - name: my-secret-vol
+    secret:
+      secretName: git-ssh-key
+      defaultMode: 0600
+  - name: github-creds-vol
+    secret:
+      secretName: github-creds
+  arguments:
+    parameters:
+    - name: repository
+      value: git@github.com:/ContainerSolutions/cre-labs-microservices-demo.git
+    - name: application
+      value: emailservice
+    - name: image-name
+      value: igiannoulas/cre-labs-microservices-demo-emailservice:argoworkflow
+  templates:
+  - name: procedure
+    steps:
+    - - name: place-ssh-key 
+        template: place-ssh-key
+    - - name: git-clone
+        template: git-clone
+        arguments:
+          artifacts:
+          - name: place-ssh-key
+            from: "{{steps.place-ssh-key.outputs.artifacts.ssh-key}}"
+    - - name: build-image
+        template: build-image
+        arguments:
+          artifacts:
+          - name: cloned-repo
+            from: "{{steps.git-clone.outputs.artifacts.cloned-repo}}"
+
+  - name: place-ssh-key
+    outputs:
+      artifacts:
+        - name: ssh-key
+          path: /root
+    container: #https://github.com/argoproj/argo-workflows/blob/master/examples/secrets.yaml
+      image: alpine:latest
+      command: [sh, -c]
+      args: ['
+        mkdir -p /root/.ssh &&
+        cp -L /tmp/ssh/* /root/.ssh/ &&
+        ls -la /root/.ssh
+      ']
+      volumeMounts:
+      - name: my-secret-vol
+        mountPath: "/tmp/ssh"
+
+  - name: git-clone
+    inputs:
+      artifacts:
+        - name: place-ssh-key
+          path: /root
+    outputs:
+      artifacts:
+        - name: cloned-repo
+          path: /tmp/output
+    container:
+      image: alpine/git
+      command: [sh, -c]
+      args: ['cat /root/.ssh/id_rsa && mkdir -p /tmp/output && cd /tmp/output && GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" git clone {{workflow.parameters.repository}} && ls -la ']
+
+  - name: build-image
+    inputs:
+      artifacts:
+        - name: cloned-repo
+          path: /tmp/output
+    container:
+      image: gcr.io/kaniko-project/executor:latest
+      command: 
+        - "/kaniko/executor"
+        - "--dockerfile=/tmp/output/cre-labs-microservices-demo/src/{{workflow.parameters.application}}/Dockerfile"
+        - "--context=/tmp/output/cre-labs-microservices-demo/src/{{workflow.parameters.application}}"
+        - "--destination={{workflow.parameters.image-name}}"
+        - --push-retry=3
+        - --cache=true
+      volumeMounts:
+      - name: github-creds-vol
+        mountPath: "/kaniko/.docker"
+     
