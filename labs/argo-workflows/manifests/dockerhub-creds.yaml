@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Secret
+metadata:
+ name: github-creds
+ namespace: argo
+stringData:
+  config.json: |
+    {
+            "auths": {
+                    "https://index.docker.io/v1/": {
+                            "auth": "xxxxxxxxx"
+                    }
+            }
+    }

@@ -1,0 +1,4 @@
+resources:
+- git-ssh-key.secret.yaml
+- dockerhub-creds.yaml
+- workflow.yaml
